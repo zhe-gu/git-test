@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鼠标跟随粒子特效</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; }
+  #canvas { display: block; }
+  .hint {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.35);
+    font: 14px/1.6 "Microsoft YaHei", sans-serif;
+    pointer-events: none;
+    user-select: none;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div class="hint">移动鼠标，粒子将跟随你</div>
+<script>
+(function () {
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+
+  const mouse = { x: null, y: null };
+  const cursor = { x: null, y: null }; // 光标上的发射点（略滞后于鼠标，形成连续粒子流）
+  window.addEventListener('mousemove', function (e) {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+  window.addEventListener('mouseleave', function () {
+    mouse.x = null;
+    mouse.y = null;
+  });
+  // 触摸支持
+  window.addEventListener('touchmove', function (e) {
+    const t = e.touches[0];
+    if (t) { mouse.x = t.clientX; mouse.y = t.clientY; }
+  }, { passive: true });
+
+  const COLORS = [
+    'rgba(100, 200, 255, {a})',  // 天蓝
+    'rgba(255, 170, 90, {a})',   // 暖橙
+    'rgba(255, 120, 180, {a})',  // 粉
+    'rgba(160, 255, 180, {a})'   // 淡绿
+  ];
+
+  const MAX_PARTICLES = 1200;
+  const particles = [];
+  const GRAVITY = 0.05;      // 向鼠标的吸引力
+  const DAMPING = 0.9;       // 速度阻尼
+  const TRAIL_LIFE = 40;     // 拖尾长度
+
+  function spawnBurst(n) {
+    for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 4 + 1;
+      particles.push({
+        x: cursor.x, y: cursor.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1,
+        color: COLORS[(Math.random() * COLORS.length) | 0],
+        size: Math.random() * 2.2 + 1,
+        age: 0
+      });
+    }
+  }
+
+  function animate() {
+    // 帧间差 → 连续移动时发射粒子（移动越快粒子越密）
+    if (mouse.x !== null && mouse.y !== null) {
+      if (cursor.x === null) {
+        cursor.x = mouse.x;
+        cursor.y = mouse.y;
+      }
+      const dx = mouse.x - cursor.x;
+      const dy = mouse.y - cursor.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 1) {
+        const steps = Math.min(3, Math.ceil(dist / 8));
+        for (let s = 0; s < steps; s++) {
+          cursor.x += dx / steps;
+          cursor.y += dy / steps;
+          spawnBurst(1);
+        }
+      }
+    }
+
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.35)';
+    ctx.fillRect(0, 0, width, height);
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age++;
+
+      // 向鼠标位置施加引力
+      if (mouse.x !== null) {
+        const dx = mouse.x - p.x;
+        const dy = mouse.y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const force = GRAVITY * (300 / (d + 60));
+        p.vx += (dx / d) * force;
+        p.vy += (dy / d) * force;
+      }
+
+      p.vx *= DAMPING;
+      p.vy *= DAMPING;
+      p.x += p.vx;
+      p.y += p.vy;
+
+      const lifeRatio = 1 - p.age / TRAIL_LIFE;
+      if (lifeRatio <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      ctx.beginPath();
+      ctx.fillStyle = p.color.replace('{a}', (0.9 * lifeRatio).toFixed(3));
+      ctx.arc(p.x, p.y, p.size * (0.4 + 0.6 * lifeRatio), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  resize();
+  animate();
+})();
+</script>
+</body>
+</html>
