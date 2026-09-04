@@ -71,6 +71,8 @@
   const TRAIL_LIFE = 90;     // 拖尾基础寿命（远离光标时）
   const PROXIMITY_RADIUS = 180;   // 光标周围影响半径
   const PROXIMITY_LIFE_BONUS = 4; // 最靠近光标时寿命额外倍率
+  const LIFE_FACTOR_MIN = 0.5;    // 粒子自身寿命随机倍率下限
+  const LIFE_FACTOR_MAX = 1.5;    // 粒子自身寿命随机倍率上限
 
   function spawnBurst(n) {
     for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
@@ -82,7 +84,9 @@
         vy: Math.sin(angle) * speed - 1,
         color: COLORS[(Math.random() * COLORS.length) | 0],
         size: Math.random() * 2.2 + 1,
-        age: 0
+        age: 0,
+        // 每个粒子生成时随机一个寿命倍率，使不同粒子存活时长出现差异
+        lifeFactor: LIFE_FACTOR_MIN + Math.random() * (LIFE_FACTOR_MAX - LIFE_FACTOR_MIN)
       });
     }
   }
@@ -130,9 +134,9 @@
       p.x += p.vx;
       p.y += p.vy;
 
-      // 越靠近光标，寿命越长
+      // 越靠近光标，寿命越长；乘上粒子自身随机倍率实现寿命差异化
       const proximity = mouse.x !== null ? Math.max(0, 1 - distToMouse / PROXIMITY_RADIUS) : 0;
-      const life = TRAIL_LIFE * (1 + PROXIMITY_LIFE_BONUS * proximity);
+      const life = TRAIL_LIFE * p.lifeFactor * (1 + PROXIMITY_LIFE_BONUS * proximity);
       const lifeRatio = 1 - p.age / life;
       if (lifeRatio <= 0) {
         particles.splice(i, 1);
