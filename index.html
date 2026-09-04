@@ -68,7 +68,9 @@
   const particles = [];
   const GRAVITY = 0.05;      // 向鼠标的吸引力
   const DAMPING = 0.9;       // 速度阻尼
-  const TRAIL_LIFE = 40;     // 拖尾长度
+  const TRAIL_LIFE = 40;     // 拖尾基础寿命（远离光标时）
+  const PROXIMITY_RADIUS = 180;   // 光标周围影响半径
+  const PROXIMITY_LIFE_BONUS = 2; // 最靠近光标时寿命额外倍率
 
   function spawnBurst(n) {
     for (let i = 0; i < n && particles.length < MAX_PARTICLES; i++) {
@@ -112,14 +114,15 @@
       const p = particles[i];
       p.age++;
 
+      let distToMouse = Infinity;
       // 向鼠标位置施加引力
       if (mouse.x !== null) {
         const dx = mouse.x - p.x;
         const dy = mouse.y - p.y;
-        const d = Math.hypot(dx, dy) || 1;
-        const force = GRAVITY * (300 / (d + 60));
-        p.vx += (dx / d) * force;
-        p.vy += (dy / d) * force;
+        distToMouse = Math.hypot(dx, dy) || 1;
+        const force = GRAVITY * (300 / (distToMouse + 60));
+        p.vx += (dx / distToMouse) * force;
+        p.vy += (dy / distToMouse) * force;
       }
 
       p.vx *= DAMPING;
@@ -127,7 +130,10 @@
       p.x += p.vx;
       p.y += p.vy;
 
-      const lifeRatio = 1 - p.age / TRAIL_LIFE;
+      // 越靠近光标，寿命越长
+      const proximity = mouse.x !== null ? Math.max(0, 1 - distToMouse / PROXIMITY_RADIUS) : 0;
+      const life = TRAIL_LIFE * (1 + PROXIMITY_LIFE_BONUS * proximity);
+      const lifeRatio = 1 - p.age / life;
       if (lifeRatio <= 0) {
         particles.splice(i, 1);
         continue;
